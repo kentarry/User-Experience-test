@@ -1,7 +1,7 @@
 /* 
  * Standalone entry point. Auto-generated from src/ 
  */
-const { Settings, Download, FileText, Plus, Trash2, Image: ImageIcon, MessageSquare, AlertTriangle, Loader2, Sparkles, Upload, FileSpreadsheet, RefreshCcw, Code, Trophy, UserIcon, FolderInput, Eye, EyeOff, X, Share2, Link: LinkIcon, DEFAULT_UX_EXPERT_PROMPT, DEFAULT_DATA_IMPORT_PROMPT, initialData } = window;
+const { Settings, Download, FileText, Plus, Trash2, ImageIcon, MessageSquare, AlertTriangle, Loader2, Sparkles, Upload, FileSpreadsheet, RefreshCcw, Code, Trophy, UserIcon, FolderInput, Eye, EyeOff, X, Share2, LinkIcon, DEFAULT_UX_EXPERT_PROMPT, DEFAULT_DATA_IMPORT_PROMPT, initialData } = window;
 const { useState, useEffect } = React;
 
 
