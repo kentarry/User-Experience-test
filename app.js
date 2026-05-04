@@ -682,17 +682,20 @@ const App = () => {
 
   const handleShareReport = () => {
     try {
-      const shareData = { ...data };
+      const shareData = {
+        ...data,
+        aiAnalysis: data.aiAnalysis.map(item => ({ ...item, imageUrl: '' }))
+      };
       const json = JSON.stringify(shareData);
       const compressed = LZString.compressToEncodedURIComponent(json);
       const basePath = window.location.href.replace(/\/[^\/]*$/, '');
       const shareUrl = basePath + '/view.html#' + compressed;
       if (shareUrl.length > 2000000) {
-        showModal('報告資料量過大（圖片過大），無法產生分享連結。\n建議使用「下載 HTML 檔案」方式分享。', '資料過大', true);
+        showModal('報告資料量過大，無法產生分享連結。\n建議使用「下載 HTML 檔案」方式分享。', '資料過大', true);
         return;
       }
       navigator.clipboard.writeText(shareUrl).then(() => {
-        showModal('✅ 分享連結已複製到剪貼簿！\n\n直接貼給專案成員即可檢視報告。\n\n📝 注意：由於連結包含了圖片編碼，網址會非常長。若在某些通訊軟體（如 Line）貼上時被截斷導致無法開啟，請改用「下載 HTML 檔案」。', '連結已複製');
+        showModal('✅ 分享連結已複製到剪貼簿！\n\n直接貼給專案成員即可檢視報告。\n\n📝 注意：分享連結不包含 AI 分析圖片，\n如需完整圖片請使用「下載 HTML 檔案」。', '連結已複製');
       }).catch(() => {
         prompt('請手動複製以下連結：', shareUrl);
       });
