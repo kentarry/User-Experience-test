@@ -169,9 +169,16 @@ tbody tr:last-child{border-bottom:none}
   <div class="error-page" id="err" style="display:none">
     <div style="font-size:64px">🔗</div>
     <h2>報告連結無效</h2>
-    <p>此連結不包含有效的報告資料，請確認連結是否完整。</p>
+    <p>此連結不包含有效的報告資料，請確認連結是否完整，或該雲端連結已過期。</p>
+  </div>
+  <div id="loading" style="display:none; flex-direction:column; align-items:center; justify-content:center; height:80vh;">
+    <div style="font-size:48px; animation:spin 2s linear infinite;">⏳</div>
+    <h2 style="margin-top:16px; color:var(--text1); font-size:18px;">讀取報告中...</h2>
   </div>
 </div>
+<style>
+@keyframes spin { 100% { transform:rotate(360deg); } }
+</style>
 
 <div id="lb" onclick="closeLB()">
   <button id="lb-x" onclick="closeLB()">&times;</button>
@@ -241,8 +248,21 @@ function render(data){
 }
 
 // Init
-(function(){
+(async function(){
   try{
+    var urlParams = new URLSearchParams(window.location.search);
+    var id = urlParams.get('id');
+    
+    if(id) {
+      document.getElementById('loading').style.display='flex';
+      var res = await fetch('https://jsonblob.com/api/jsonBlob/' + id);
+      if(!res.ok) throw new Error('Fetch failed');
+      var data = await res.json();
+      document.getElementById('loading').style.display='none';
+      render(data);
+      return;
+    }
+
     var hash=window.location.hash;
     if(!hash||hash.length<2){document.getElementById('err').style.display='flex';return;}
     var encoded=hash.substring(1);
@@ -252,6 +272,7 @@ function render(data){
     render(data);
   }catch(e){
     console.error('Report parse error:',e);
+    document.getElementById('loading').style.display='none';
     document.getElementById('err').style.display='flex';
   }
 })();
