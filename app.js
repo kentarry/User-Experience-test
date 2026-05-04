@@ -711,8 +711,25 @@ const App = () => {
 
   const handleShareReport = async () => {
     try {
-      showModal('正在上傳報告資料，這可能需要幾秒鐘...', '處理中');
-      const shareData = { ...data };
+      showModal('正在檢查與上傳報告資料，請稍候...', '處理中');
+      let shareData = { ...data };
+      let payload = JSON.stringify(shareData);
+      let isImageStripped = false;
+      
+      // JSONBlob has a 1MB limit. Base64 images can easily exceed this.
+      // 900,000 bytes is a safe threshold.
+      if (payload.length > 900000) {
+        isImageStripped = true;
+        shareData.aiAnalysis = shareData.aiAnalysis.map(item => ({
+          ...item,
+          imageUrl: "" // Remove image to reduce payload size
+        }));
+        payload = JSON.stringify(shareData);
+        
+        if (payload.length > 900000) {
+          throw new Error('資料量過大，無法產生分享連結。請直接使用「下載 HTML 檔案」。');
+        }
+      }
       
       const response = await fetch('https://jsonblob.com/api/jsonBlob', {
         method: 'POST',
@@ -720,11 +737,14 @@ const App = () => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify(shareData)
+        body: payload
       });
       
       if (!response.ok) {
-        throw new Error('雲端空間連線失敗');
+        if (response.status === 413 || response.status === 429) {
+          throw new Error('資料量過大，遠端伺服器拒絕接收。');
+        }
+        throw new Error('雲端空間連線失敗 (HTTP ' + response.status + ')');
       }
       
       let id = response.headers.get('x-jsonblob-id');
@@ -739,13 +759,23 @@ const App = () => {
       const basePath = window.location.href.replace(/\/[^\/]*$/, '');
       const shareUrl = basePath + '/view.html?id=' + id;
       
+      let successMsg = '✅ 分享連結已複製到剪貼簿！\n\n短網址已產生，可以直接貼給專案成員。\n\n📝 注意：免費雲端空間可能會在數月無人點閱後自動清除資料，若需永久保存請使用「下載 HTML 檔案」。';
+      if (isImageStripped) {
+        successMsg = '⚠️ 由於包含的圖片過多/過大，為產生分享連結，【圖片已被自動移除】(文字建議仍保留)。\n\n✅ 短連結已複製到剪貼簿！\n\n若專案成員需要檢視完整圖片，請改用「下載 HTML 檔案」並傳送給對方。';
+      }
+      
       navigator.clipboard.writeText(shareUrl).then(() => {
-        showModal('✅ 分享連結已複製到剪貼簿！\n\n短網址已產生，且「包含完整分析圖片」，可以直接貼給專案成員。\n\n📝 注意：免費雲端空間可能會在數月無人點閱後自動清除資料，若需永久保存請使用「下載 HTML 檔案」。', '短連結已複製');
+        showModal(successMsg, isImageStripped ? '連結已複製 (不含圖片)' : '短連結已複製');
       }).catch(() => {
         prompt('請手動複製以下連結：', shareUrl);
+        showModal(successMsg, isImageStripped ? '連結產生成功 (不含圖片)' : '短連結產生成功');
       });
     } catch (err) {
-      showModal('產生分享連結失敗: ' + err.message, '錯誤', true);
+      let errMsg = err.message;
+      if (errMsg === 'Failed to fetch') {
+        errMsg = '網路連線異常或資料量過大導致請求被阻擋。建議改用「下載 HTML 檔案」。';
+      }
+      showModal('產生分享連結失敗: ' + errMsg, '錯誤', true);
     }
   };
 
