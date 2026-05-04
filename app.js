@@ -587,8 +587,37 @@ const App = () => {
     if (!file) return;
     const reader = new FileReader();
     reader.onloadend = () => {
-      updateListItem('aiAnalysis', index, 'imageUrl', reader.result);
-      analyzeImage(index, reader.result);
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1000;
+        const MAX_HEIGHT = 1000;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Compress to webp for ultra-small base64 size
+        const compressedBase64 = canvas.toDataURL('image/webp', 0.6);
+        updateListItem('aiAnalysis', index, 'imageUrl', compressedBase64);
+        analyzeImage(index, compressedBase64);
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
@@ -680,22 +709,38 @@ const App = () => {
   // --- Export & Share ---
   const handleExportHtml = () => exportHtmlReport(data);
 
-  const handleShareReport = () => {
+  const handleShareReport = async () => {
     try {
-      const shareData = {
-        ...data,
-        aiAnalysis: data.aiAnalysis.map(item => ({ ...item, imageUrl: '' }))
-      };
-      const json = JSON.stringify(shareData);
-      const compressed = LZString.compressToEncodedURIComponent(json);
-      const basePath = window.location.href.replace(/\/[^\/]*$/, '');
-      const shareUrl = basePath + '/view.html#' + compressed;
-      if (shareUrl.length > 2000000) {
-        showModal('報告資料量過大，無法產生分享連結。\n建議使用「下載 HTML 檔案」方式分享。', '資料過大', true);
-        return;
+      showModal('正在上傳報告資料，這可能需要幾秒鐘...', '處理中');
+      const shareData = { ...data };
+      
+      const response = await fetch('https://jsonblob.com/api/jsonBlob', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(shareData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('雲端空間連線失敗');
       }
+      
+      let id = response.headers.get('x-jsonblob-id');
+      const location = response.headers.get('Location');
+      if (!id && location) {
+        const parts = location.split('/');
+        id = parts[parts.length - 1];
+      }
+      
+      if (!id) throw new Error('無法取得分享 ID');
+      
+      const basePath = window.location.href.replace(/\/[^\/]*$/, '');
+      const shareUrl = basePath + '/view.html?id=' + id;
+      
       navigator.clipboard.writeText(shareUrl).then(() => {
-        showModal('✅ 分享連結已複製到剪貼簿！\n\n直接貼給專案成員即可檢視報告。\n\n📝 注意：分享連結不包含 AI 分析圖片，\n如需完整圖片請使用「下載 HTML 檔案」。', '連結已複製');
+        showModal('✅ 分享連結已複製到剪貼簿！\n\n短網址已產生，且「包含完整分析圖片」，可以直接貼給專案成員。\n\n📝 注意：免費雲端空間可能會在數月無人點閱後自動清除資料，若需永久保存請使用「下載 HTML 檔案」。', '短連結已複製');
       }).catch(() => {
         prompt('請手動複製以下連結：', shareUrl);
       });
