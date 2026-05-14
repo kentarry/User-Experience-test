@@ -27,19 +27,41 @@ export function exportHtmlReport(data) {
 
   const issueRows = (issues, color) => {
     if (!issues || issues.length === 0) return '<tr><td colspan="5" class="td" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">尚無資料</td></tr>';
-    return issues.map(item => {
+    
+    // Separate normal issues from suggestion-only items
+    const normalIssues = issues.filter(item => !item.isSuggestionOnly && item.issue !== '無使用者體驗' && item.issue !== '無' && item.issue !== '無對應使用者體驗');
+    const soIssues = issues.filter(item => item.isSuggestionOnly || item.issue === '無使用者體驗' || item.issue === '無' || item.issue === '無對應使用者體驗');
+
+    // Render normal issue rows
+    const normalRows = normalIssues.map(item => {
       const sgs = Array.isArray(item.suggestions) && item.suggestions.length > 0
         ? item.suggestions
         : [{ suggestionId: item.suggestionId || '', suggestion: item.suggestion || '' }];
       const rs = sgs.length;
-      const isSO = item.isSuggestionOnly || item.issue === '無使用者體驗' || item.issue === '無';
-      const issDisp = isSO ? '無' : esc(item.issue);
-      const cntDisp = isSO ? '' : item.count;
       return sgs.map((sg, si) => {
-        const left = si === 0 ? `<td rowspan="${rs}" class="td td-id ${color}">${esc(item.id)}</td><td rowspan="${rs}" class="td td-issue">${issDisp}</td><td rowspan="${rs}" class="td td-count">${cntDisp}</td>` : '';
+        const left = si === 0 ? `<td rowspan="${rs}" class="td td-id ${color}">${esc(item.id)}</td><td rowspan="${rs}" class="td td-issue">${esc(item.issue)}</td><td rowspan="${rs}" class="td td-count">${item.count}</td>` : '';
         return `<tr>${left}<td class="td td-sid">${esc(sg.suggestionId)}</td><td class="td td-sug">${esc(sg.suggestion)}</td></tr>`;
       }).join('');
     }).join('');
+
+    // Render suggestion-only rows as one merged group
+    let soRows = '';
+    if (soIssues.length > 0) {
+      const allSugRows = [];
+      soIssues.forEach(item => {
+        const sgs = Array.isArray(item.suggestions) && item.suggestions.length > 0
+          ? item.suggestions
+          : [{ suggestionId: item.suggestionId || '', suggestion: item.suggestion || '' }];
+        sgs.forEach(sg => allSugRows.push(sg));
+      });
+      const totalRows = allSugRows.length;
+      soRows = allSugRows.map((sg, idx) => {
+        const left = idx === 0 ? `<td rowspan="${totalRows}" class="td td-id ${color}" style="vertical-align:middle">${esc(soIssues[0].id)}</td><td rowspan="${totalRows}" class="td td-issue" style="color:var(--text3);font-style:italic;text-align:center;vertical-align:middle">無對應使用者體驗</td><td rowspan="${totalRows}" class="td td-count"></td>` : '';
+        return `<tr>${left}<td class="td td-sid">${esc(sg.suggestionId)}</td><td class="td td-sug">${esc(sg.suggestion)}</td></tr>`;
+      }).join('');
+    }
+
+    return normalRows + soRows;
   };
 
   const aiCards = cleanData.aiAnalysis.map(item => {

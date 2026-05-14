@@ -2,35 +2,197 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar styles */
+/* ===== Custom Scrollbar ===== */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: transparent;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 4px;
+  background: rgba(71, 85, 105, 0.5);
+  border-radius: 3px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: rgba(100, 116, 139, 0.7);
 }
-
-/* Firefox scrollbar */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #475569 #1e293b;
+  scrollbar-color: rgba(71, 85, 105, 0.5) transparent;
 }
 
-/* Global body styles */
+/* ===== Body ===== */
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #06080d;
+}
+
+
+
+/* ===== Toast Animation ===== */
+.toast-enter {
+  animation: toast-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toast-progress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* ===== Stat Card Enter Animation ===== */
+.stat-card-enter {
+  animation: stat-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes stat-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ===== Onboarding Card Enter ===== */
+.onboarding-card-enter {
+  animation: onboard-slide 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes onboard-slide {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ===== Page Fade In ===== */
+.page-fade-in {
+  animation: page-fade 0.6s ease-out;
+}
+
+@keyframes page-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ===== Gradient Text ===== */
+.gradient-text {
+  background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== Smooth Table Row Hover ===== */
+.issue-table-row {
+  transition: background-color 0.2s ease;
+}
+.issue-table-row:hover {
+  background-color: rgba(59, 130, 246, 0.04);
+}
+
+/* ===== API Status Indicator ===== */
+.api-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.api-status-dot.valid {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+.api-status-dot.invalid {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+.api-status-dot.checking {
+  background: #f59e0b;
+  animation: pulse-glow 0.8s ease-in-out infinite;
+}
+.api-status-dot.idle {
+  background: #475569;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.2); }
+}
+
+/* ===== Drop Zone Active ===== */
+.drop-zone-active {
+  border-color: rgba(59, 130, 246, 0.6) !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  box-shadow: inset 0 0 30px rgba(59, 130, 246, 0.05);
+}
+
+/* ===== Smooth spin for settings icon ===== */
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}
+
+/* ===== Glass card effect ===== */
+.glass-card {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ===== Section header gradient line ===== */
+.section-gradient-line {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), rgba(168, 85, 247, 0.3), transparent);
+}
+
+/* ===== AI Analysis card hover ===== */
+.ai-analysis-card {
+  transition: all 0.3s ease;
+}
+.ai-analysis-card:hover {
+  border-color: rgba(249, 115, 22, 0.3);
+  box-shadow: 0 4px 24px rgba(249, 115, 22, 0.05);
+}
+
+/* ===== Locked prompt indicator ===== */
+.prompt-locked {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.prompt-locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(100, 116, 139, 0.03) 10px,
+    rgba(100, 116, 139, 0.03) 20px
+  );
+  pointer-events: none;
 }

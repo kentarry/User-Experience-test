@@ -65,3 +65,49 @@ export function parseAIJson(text) {
   cleanText = cleanText.trim();
   return JSON.parse(cleanText);
 }
+
+/**
+ * Validate an API key by sending a minimal request to Gemini.
+ * @param {string} apiKey - The Gemini API key to validate.
+ * @returns {Promise<{valid: boolean, error?: string}>}
+ */
+export async function validateApiKey(apiKey) {
+  if (!apiKey || apiKey.trim().length < 10) {
+    return { valid: false, error: '金鑰格式不正確' };
+  }
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const payload = {
+      contents: [{ parts: [{ text: "Hi" }] }],
+      generationConfig: { maxOutputTokens: 5 }
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      return { valid: true };
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 400 && data.error?.message?.includes('API key')) {
+      return { valid: false, error: 'API Key 無效' };
+    }
+    if (response.status === 403) {
+      return { valid: false, error: 'API Key 權限不足' };
+    }
+    if (response.status === 429) {
+      // Rate limited but key is valid
+      return { valid: true };
+    }
+    return { valid: false, error: `驗證失敗 (${response.status})` };
+  } catch (err) {
+    return { valid: false, error: '網路連線異常' };
+  }
+}
+
+

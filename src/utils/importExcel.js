@@ -2,6 +2,25 @@ import * as XLSX from 'xlsx';
 import { callGemini, parseAIJson } from './gemini';
 
 /**
+ * Clean suggestion text by removing date prefixes (e.g. "0413早:") and "規格建議_" prefixes.
+ * The original text is preserved in bestSuggestionRawText for internal view.
+ */
+function cleanSuggestionText(text) {
+  if (!text || typeof text !== 'string') return text;
+  let cleaned = text.trim();
+  let prev;
+  do {
+    prev = cleaned;
+    cleaned = cleaned
+      .replace(/^\d{4}[早中晚]?[:：]?\s*/g, '')
+      .replace(/^規格建議[_]?\s*/g, '')
+      .replace(/^[:：]\s*/g, '')
+      .trim();
+  } while (cleaned !== prev);
+  return cleaned;
+}
+
+/**
  * Parse an Excel file and use Gemini AI to analyze UX feedback data.
  * @param {File} file - The uploaded Excel file.
  * @param {string} dataImportPrompt - The prompt to send to Gemini.
@@ -197,39 +216,145 @@ export async function importExcelFile(file, dataImportPrompt, apiKey, existingAi
         const processedCritical = assignIdsAndSplitSuggestions(newCritical, 0);
         const processedSecondary = assignIdsAndSplitSuggestions(newSecondary, newCritical.length);
 
-        // --- Collect suggestion-only entries ---
-        // Find rows that have suggestion but no uxContext and weren't already associated
-        const usedRowIds = new Set();
+        // --- Step 1: Separate suggestion-only rows (有建議無體驗) ---
+        // These are rows where the tester wrote a suggestion but no UX issue description.
+        // They should always appear as individual entries, not be consumed by AI grouping.
+        const suggestionOnlyRows = filteredData.filter(row =>
+          (!row.uxContext || row.uxContext.trim() === '') &&
+          row.suggestion && row.suggestion.trim() !== ''
+        );
+        const suggestionOnlyRowIds = new Set(suggestionOnlyRows.map(r => r._id));
+
+        // --- Step 2: Collect AI matching pool for regular unmatched detection ---
+        const allRawTextLines = new Set();
         [...processedCritical, ...processedSecondary].forEach(issue => {
-          if (Array.isArray(issue.relatedRowIds)) {
-            issue.relatedRowIds.forEach(id => usedRowIds.add(id));
+          const raw = issue.bestSuggestionRawText || '';
+          if (raw) {
+            raw.split(/\r?\n/).forEach(line => {
+              const t = line.trim();
+              if (t) allRawTextLines.add(t);
+            });
           }
         });
 
-        const suggestionOnlyRows = filteredData.filter(d =>
-          (!d.uxContext || d.uxContext.trim() === "") && d.suggestion && d.suggestion.trim() !== ""
-        );
+        const allSuggestionTexts = [];
+        [...processedCritical, ...processedSecondary].forEach(issue => {
+          if (issue.suggestion) allSuggestionTexts.push(issue.suggestion);
+          if (Array.isArray(issue.suggestions)) {
+            issue.suggestions.forEach(s => {
+              if (s.suggestion) allSuggestionTexts.push(s.suggestion);
+            });
+          }
+        });
+        const combinedSuggestionText = allSuggestionTexts.join('\n');
 
-        if (suggestionOnlyRows.length > 0) {
-          // Group suggestion-only rows into a single "no UX" entry
-          const suggestionOnlyIssue = {
-            id: `UX${String(processedCritical.length + processedSecondary.length + 1).padStart(2, '0')}`,
-            issue: "無使用者體驗",
-            count: 0,
-            relatedPersonnel: [],
-            suggestion: "",
-            suggestions: suggestionOnlyRows.map(row => ({
+        // --- Step 3: Check unmatched suggestions from rows WITH uxContext ---
+        const unmatchedSuggestionLines = [];
+        filteredData.forEach(row => {
+          // Skip suggestion-only rows (handled separately in Step 4)
+          if (suggestionOnlyRowIds.has(row._id)) return;
+          if (!row.suggestion || row.suggestion.trim() === '') return;
+
+          const lines = row.suggestion.split(/\r?\n/).filter(l => l.trim());
+          lines.forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+
+            // Check 1: Exact match in bestSuggestionRawText
+            if (allRawTextLines.has(trimmed)) return;
+
+            // Check 2: Substring match in bestSuggestionRawText
+            let foundInRaw = false;
+            for (const rawLine of allRawTextLines) {
+              if (rawLine.includes(trimmed) || trimmed.includes(rawLine)) {
+                foundInRaw = true;
+                break;
+              }
+            }
+            if (foundInRaw) return;
+
+            // Check 3: Match in AI-generated suggestion text
+            if (combinedSuggestionText.includes(trimmed)) return;
+
+            // Check 4: Fuzzy core content matching
+            const coreContent = trimmed
+              .replace(/^\d{4}[早中晚]?[:：]?\s*/g, '')
+              .replace(/^[\d.]+\s*/g, '')
+              .replace(/^\(?規格建議[_)）]?\s*/g, '')
+              .replace(/^\(?[^)）]*建議[_)）]?\s*/g, '')
+              .trim();
+
+            if (coreContent.length > 6) {
+              let coreMatched = false;
+              for (const rawLine of allRawTextLines) {
+                if (rawLine.includes(coreContent)) {
+                  coreMatched = true;
+                  break;
+                }
+              }
+              if (coreMatched) return;
+              if (combinedSuggestionText.includes(coreContent)) return;
+            }
+
+            unmatchedSuggestionLines.push({
+              suggestion: trimmed,
+              user: row.user,
+              account: row.account
+            });
+          });
+        });
+
+        // --- Step 4: Create individual entries for suggestion-only rows ---
+        // Each suggestion-only row becomes its own UX entry with "無對應使用者體驗"
+        let nextUxIndex = processedCritical.length + processedSecondary.length + 1;
+
+        suggestionOnlyRows.forEach(row => {
+          const lines = row.suggestion.split(/\r?\n/).filter(l => l.trim());
+          lines.forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+
+            const cleanedText = cleanSuggestionText(trimmed);
+            const entry = {
+              id: `UX${String(nextUxIndex++).padStart(2, '0')}`,
+              issue: "無對應使用者體驗",
+              count: 1,
+              relatedPersonnel: [row.user],
+              suggestion: cleanedText,
+              suggestions: [{
+                suggestionId: `S${String(globalSuggestionCounter++).padStart(2, '0')}`,
+                suggestion: cleanedText
+              }],
+              bestSuggestionRawText: trimmed,
+              bestSuggester: { name: row.user, account: row.account },
+              isSuggestionOnly: true
+            };
+            entry.suggestionId = entry.suggestions[0].suggestionId;
+            processedSecondary.push(entry);
+          });
+        });
+
+        // --- Step 5: Create individual entries for remaining unmatched suggestions ---
+        // These come from rows that HAD uxContext but their suggestions weren't consumed by AI
+        unmatchedSuggestionLines.forEach(item => {
+          const cleanedText = cleanSuggestionText(item.suggestion);
+          const entry = {
+            id: `UX${String(nextUxIndex++).padStart(2, '0')}`,
+            issue: "無對應使用者體驗",
+            count: 1,
+            relatedPersonnel: [item.user],
+            suggestion: cleanedText,
+            suggestions: [{
               suggestionId: `S${String(globalSuggestionCounter++).padStart(2, '0')}`,
-              suggestion: row.suggestion,
-              suggester: { name: row.user, account: row.account }
-            })),
-            bestSuggestionRawText: "",
-            bestSuggester: { name: "", account: "" },
+              suggestion: cleanedText
+            }],
+            bestSuggestionRawText: item.suggestion,
+            bestSuggester: { name: item.user, account: item.account },
             isSuggestionOnly: true
           };
-          suggestionOnlyIssue.suggestionId = suggestionOnlyIssue.suggestions[0].suggestionId;
-          processedSecondary.push(suggestionOnlyIssue);
-        }
+          entry.suggestionId = entry.suggestions[0].suggestionId;
+          processedSecondary.push(entry);
+        });
 
         importedData.criticalIssues = processedCritical;
         importedData.secondaryIssues = processedSecondary;

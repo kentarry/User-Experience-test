@@ -202,17 +202,30 @@ function render(data){
 
   function issueRows(issues,color){
     if(!issues||!issues.length)return '<tr><td colspan="5" class="td" style="text-align:center;color:var(--text3);padding:32px;font-style:italic">尚無資料</td></tr>';
-    return issues.map(function(item){
+    var normalIssues=issues.filter(function(item){return !item.isSuggestionOnly && item.issue!=='無使用者體驗' && item.issue!=='無' && item.issue!=='無對應使用者體驗';});
+    var soIssues=issues.filter(function(item){return item.isSuggestionOnly || item.issue==='無使用者體驗' || item.issue==='無' || item.issue==='無對應使用者體驗';});
+    var normalRows=normalIssues.map(function(item){
       var sgs=(Array.isArray(item.suggestions)&&item.suggestions.length>0)?item.suggestions:[{suggestionId:item.suggestionId||'',suggestion:item.suggestion||''}];
       var rs=sgs.length;
-      var isSO=item.isSuggestionOnly||(item.issue==='無使用者體驗')||(item.issue==='無');
-      var issDisp=isSO?'無':esc(item.issue);
-      var cntDisp=isSO?'':item.count;
       return sgs.map(function(sg,si){
-        var left=si===0?'<td rowspan="'+rs+'" class="td td-id '+color+'">'+esc(item.id)+'</td><td rowspan="'+rs+'" class="td td-issue">'+issDisp+'</td><td rowspan="'+rs+'" class="td td-count">'+cntDisp+'</td>':'';
+        var left=si===0?'<td rowspan="'+rs+'" class="td td-id '+color+'">'+esc(item.id)+'</td><td rowspan="'+rs+'" class="td td-issue">'+esc(item.issue)+'</td><td rowspan="'+rs+'" class="td td-count">'+item.count+'</td>':'';
         return '<tr>'+left+'<td class="td td-sid">'+esc(sg.suggestionId)+'</td><td class="td td-sug">'+esc(sg.suggestion)+'</td></tr>';
       }).join('');
     }).join('');
+    var soRows='';
+    if(soIssues.length>0){
+      var allSugRows=[];
+      soIssues.forEach(function(item){
+        var sgs=(Array.isArray(item.suggestions)&&item.suggestions.length>0)?item.suggestions:[{suggestionId:item.suggestionId||'',suggestion:item.suggestion||''}];
+        sgs.forEach(function(sg){allSugRows.push(sg);});
+      });
+      var totalRows=allSugRows.length;
+      soRows=allSugRows.map(function(sg,idx){
+        var left=idx===0?'<td rowspan="'+totalRows+'" class="td td-id '+color+'" style="vertical-align:middle">'+esc(soIssues[0].id)+'</td><td rowspan="'+totalRows+'" class="td td-issue" style="color:var(--text3);font-style:italic;text-align:center;vertical-align:middle">無對應使用者體驗</td><td rowspan="'+totalRows+'" class="td td-count"></td>':'';
+        return '<tr>'+left+'<td class="td td-sid">'+esc(sg.suggestionId)+'</td><td class="td td-sug">'+esc(sg.suggestion)+'</td></tr>';
+      }).join('');
+    }
+    return normalRows+soRows;
   }
 
   function aiCards(items){
