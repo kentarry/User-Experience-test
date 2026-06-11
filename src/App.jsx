@@ -13,7 +13,7 @@ import DashboardStats from './components/DashboardStats';
 import ProgressStepper from './components/ProgressStepper';
 import OnboardingGuide from './components/OnboardingGuide';
 import { initialData, DEFAULT_UX_EXPERT_PROMPT, DEFAULT_DATA_IMPORT_PROMPT } from './constants';
-import { callGemini, parseAIJson, validateApiKey, QuotaExhaustedError } from './utils/gemini';
+import { callGemini, parseAIJson, validateApiKey, QuotaExhaustedError, ModelUnavailableError, SafetyBlockError } from './utils/gemini';
 import { exportHtmlReport } from './utils/exportHtml';
 import { importExcelFile } from './utils/importExcel';
 import LZString from 'lz-string';
@@ -228,6 +228,20 @@ const App = () => {
     } catch (error) {
       if (error instanceof QuotaExhaustedError) {
         showModal(error.message, "⚠️ API 配額不足", true);
+      } else if (error instanceof ModelUnavailableError) {
+        showModal(
+          `${error.message}\n\n建議方案：\n1. 稍等 1-2 分鐘後重試\n2. 從右上方切換到其他 AI 模型`,
+          "⚠️ 模型暫時無法使用",
+          true
+        );
+      } else if (error instanceof SafetyBlockError) {
+        showModal(
+          `此圖片被 AI 安全過濾器阻擋（可能被誤判為賭博/敏感內容）。\n\n` +
+          `系統已嘗試降低過濾等級但仍無法通過。\n\n` +
+          `建議方案：\n1. 切換到其他 AI 模型重試\n2. 使用付費 API Key（付費方案可設定更寬鬆的安全過濾）\n3. 裁切圖片後重新上傳`,
+          "⚠️ 安全過濾器阻擋",
+          true
+        );
       } else {
         showModal("AI 分析失敗：" + error.message, "錯誤", true);
       }
@@ -250,6 +264,18 @@ const App = () => {
       console.error(error);
       if (error instanceof QuotaExhaustedError) {
         showModal(error.message, "⚠️ API 配額不足", true);
+      } else if (error instanceof ModelUnavailableError) {
+        showModal(
+          `${error.message}\n\n建議方案：\n1. 稍等 1-2 分鐘後重試\n2. 從右上方切換到其他 AI 模型`,
+          "⚠️ 模型暫時無法使用",
+          true
+        );
+      } else if (error instanceof SafetyBlockError) {
+        showModal(
+          `資料內容被 AI 安全過濾器阻擋。\n\n系統已嘗試降低過濾等級但仍無法通過。\n\n建議切換到其他 AI 模型重試。`,
+          "⚠️ 安全過濾器阻擋",
+          true
+        );
       } else {
         showModal("匯入失敗：" + error.message, "錯誤", true);
       }
